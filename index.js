@@ -1,11 +1,12 @@
-// index.js
 import "dotenv/config";
 import express from "express";
 import pkg from "pg";
 const { Pool } = pkg;
+import { createUserRouter } from "./routes/user.js";
 
 const app = express();
 const PORT = 3000;
+app.use(express.json());
 
 const pool = new Pool({
   host: process.env.PGHOST,
@@ -21,15 +22,8 @@ pool
   .then((res) => console.log("Postgres connected:", res.rows[0]))
   .catch((err) => console.error("Postgres connection error:", err));
 
-app.get("/", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT NOW()");
-    res.send(`Hello World! Postgres time is: ${result.rows[0].now}`);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Database error");
-  }
-});
+const userRouter = createUserRouter(pool);
+app.use("/user", userRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
