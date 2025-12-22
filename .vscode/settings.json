@@ -1,0 +1,20 @@
+{
+  "sqltools.connections": [
+    {
+      "pgOptions": {
+        "ssl": {
+          "rejectUnauthorized": true
+        }
+      },
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "ep-sparkling-forest-a1x56kd4-pooler.ap-southeast-1.aws.neon.tech",
+      "port": 5432,
+      "driver": "PostgreSQL",
+      "name": "Compro",
+      "database": "neondb",
+      "username": "neondb_owner",
+      "password": "npg_yAb68axZuVdo"
+    }
+  ]
+}

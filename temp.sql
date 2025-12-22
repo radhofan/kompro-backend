@@ -37,4 +37,5 @@ VALUES
 ('Bob Smith', 'bob@example.com', 'hashed_password_2', 'student', 'NIM12346'),
 ('Carol Lee', 'carol@example.com', 'hashed_password_3', 'teacher', 'NIP98765'),
 ('David Kim', 'david@example.com', 'hashed_password_4', 'student', 'NIM12347'),
-('Eva Martinez', 'eva@example.com', 'hashed_password_5', 'teacher', 'NIP98766');
+('Eva Martinez', 'eva@example.com', 'hashed_password_5', 'teacher', 'NIP98766'),
+('Pronen', 'amliste28@gmail.com', 'amliste28', 'developer', 'NIP232323');
