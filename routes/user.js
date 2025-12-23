@@ -341,5 +341,251 @@ export function createUserRouter(pool) {
     }
   });
 
+  /**
+   * GET /user/notifications
+   *
+   * Description:
+   *   Retrieves all notifications for the user, ordered from newest to oldest.
+   *
+   * Query Parameters:
+   *   userId (integer, required) - the ID of the user
+   *
+   * Successful Response (200):
+   *   [
+   *     {
+   *       "notificationId": 1,
+   *       "title": "Welcome",
+   *       "message": "Thanks for signing up! We hope you enjoy our service.",
+   *       "createdAt": "2025-12-23T09:00:00.000Z"
+   *     },
+   *     ...
+   *   ]
+   *
+   * Error Responses:
+   *   400 Bad Request
+   *     { "error": "userId is required" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to fetch notifications" }
+   */
+  router.get("/get-notifications-all", async (req, res) => {
+    try {
+      const userId = req.query.userId;
+      if (!userId) {
+        return res.status(400).send({ error: "userId is required" });
+      }
+
+      const result = await pool.query(
+        "SELECT notification_id, title, message, created_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC",
+        [userId]
+      );
+
+      const notifications = result.rows.map((row) => ({
+        notificationId: row.notification_id,
+        title: row.title,
+        message: row.message,
+        createdAt: row.created_at,
+      }));
+
+      res.status(200).send(notifications);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  /**
+   * POST /user/get-user
+   *
+   * Description:
+   *   Retrieves a user by their ID. The userId is sent in the request body.
+   *
+   * Request Body (JSON):
+   *   {
+   *     "userId": 1   // integer, required
+   *   }
+   *
+   * Successful Response (200):
+   *   {
+   *     "userId": 1,
+   *     "name": "John Doe",
+   *     "email": "john@example.com",
+   *     "role": "admin",
+   *     "nim_nip": "123456789"
+   *   }
+   *
+   * Error Responses:
+   *   400 Bad Request
+   *     { "error": "userId is required" }
+   *
+   *   404 Not Found
+   *     { "error": "User not found" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to fetch user" }
+   */
+  router.post("/get-user", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      if (!userId) {
+        return res.status(400).send({ error: "userId is required" });
+      }
+
+      const result = await pool.query(
+        'SELECT user_id, name, username_email, role, nim_nip FROM "User" WHERE user_id = $1',
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).send({ error: "User not found" });
+      }
+
+      const user = result.rows[0];
+
+      res.status(200).send({
+        userId: user.user_id,
+        name: user.name,
+        email: user.username_email,
+        role: user.role,
+        nim_nip: user.nim_nip,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to fetch user" });
+    }
+  });
+
+  /**
+   * POST /user/check-in
+   *
+   * Description:
+   *   Records a check-in attendance for a user at a specific location.
+   *   Automatically sets the type to "check-in" and timestamp to current time.
+   *
+   * Request Body (JSON):
+   *   {
+   *     "userId": 1,            // integer, required
+   *     "locationId": 2,        // integer, required
+   *     "userLatitude": 123.45, // number, optional
+   *     "userLongitude": 67.89, // number, optional
+   *     "notes": "Some note"    // string, optional
+   *   }
+   *
+   * Successful Response (200):
+   *   {
+   *     "message": "Check-in recorded",
+   *     "attendanceId": 10,
+   *     "timestamp": "2025-12-23T09:00:00.000Z"
+   *   }
+   *
+   * Error Responses:
+   *   400 Bad Request
+   *     { "error": "userId and locationId are required" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to record check-in" }
+   */
+  router.post("/check-in", async (req, res) => {
+    try {
+      const { userId, locationId, userLatitude, userLongitude, notes } =
+        req.body;
+
+      if (!userId || !locationId) {
+        return res
+          .status(400)
+          .send({ error: "userId and locationId are required" });
+      }
+
+      const result = await pool.query(
+        `INSERT INTO attendance
+       (user_id, location_id, type, user_latitude, user_longitude, notes)
+       VALUES ($1, $2, 'check-in', $3, $4, $5)
+       RETURNING attendance_id, timestamp`,
+        [
+          userId,
+          locationId,
+          userLatitude || null,
+          userLongitude || null,
+          notes || null,
+        ]
+      );
+
+      res.status(200).send({
+        message: "Check-in recorded",
+        attendanceId: result.rows[0].attendance_id,
+        timestamp: result.rows[0].timestamp,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to record check-in" });
+    }
+  });
+
+  /**
+   * POST /user/checkout
+   *
+   * Description:
+   *   Records a checkout attendance for a user at a specific location.
+   *   Automatically sets the type to "checkout" and timestamp to current time.
+   *
+   * Request Body (JSON):
+   *   {
+   *     "userId": 1,            // integer, required
+   *     "locationId": 2,        // integer, required
+   *     "userLatitude": 123.45, // number, optional
+   *     "userLongitude": 67.89, // number, optional
+   *     "notes": "Some note"    // string, optional
+   *   }
+   *
+   * Successful Response (200):
+   *   {
+   *     "message": "Checkout recorded",
+   *     "attendanceId": 11,
+   *     "timestamp": "2025-12-23T17:00:00.000Z"
+   *   }
+   *
+   * Error Responses:
+   *   400 Bad Request
+   *     { "error": "userId and locationId are required" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to record checkout" }
+   */
+  router.post("/checkout", async (req, res) => {
+    try {
+      const { userId, locationId, userLatitude, userLongitude, notes } =
+        req.body;
+
+      if (!userId || !locationId) {
+        return res
+          .status(400)
+          .send({ error: "userId and locationId are required" });
+      }
+
+      const result = await pool.query(
+        `INSERT INTO attendance
+       (user_id, location_id, type, user_latitude, user_longitude, notes)
+       VALUES ($1, $2, 'checkout', $3, $4, $5)
+       RETURNING attendance_id, timestamp`,
+        [
+          userId,
+          locationId,
+          userLatitude || null,
+          userLongitude || null,
+          notes || null,
+        ]
+      );
+
+      res.status(200).send({
+        message: "Checkout recorded",
+        attendanceId: result.rows[0].attendance_id,
+        timestamp: result.rows[0].timestamp,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to record checkout" });
+    }
+  });
+
   return router;
 }
