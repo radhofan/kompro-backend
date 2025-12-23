@@ -342,6 +342,62 @@ export function createUserRouter(pool) {
   });
 
   /**
+   * GET /user/get-notification-latest
+   *
+   * Description:
+   *   Retrieves the latest notification for a user.
+   *
+   * Query Parameters:
+   *   userId (integer, required) - the ID of the user
+   *
+   * Successful Response (200):
+   *   {
+   *     "notificationId": 5,
+   *     "title": "Alert",
+   *     "message": "Unusual login attempt detected on your account.",
+   *     "createdAt": "2025-12-23T18:20:00.000Z"
+   *   }
+   *
+   * Error Responses:
+   *   400 Bad Request
+   *     { "error": "userId is required" }
+   *
+   *   404 Not Found
+   *     { "error": "No notifications found" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to fetch latest notification" }
+   */
+  router.get("/get-notification-latest", async (req, res) => {
+    try {
+      const userId = req.query.userId;
+      if (!userId) {
+        return res.status(400).send({ error: "userId is required" });
+      }
+
+      const result = await pool.query(
+        "SELECT notification_id, title, message, created_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).send({ error: "No notifications found" });
+      }
+
+      const row = result.rows[0];
+      res.status(200).send({
+        notificationId: row.notification_id,
+        title: row.title,
+        message: row.message,
+        createdAt: row.created_at,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to fetch latest notification" });
+    }
+  });
+
+  /**
    * GET /user/notifications
    *
    * Description:
