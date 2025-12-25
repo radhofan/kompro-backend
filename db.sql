@@ -29,7 +29,7 @@ CREATE TABLE public."Attendance" (
     attendance_id integer NOT NULL,
     user_id integer NOT NULL,
     location_id integer NOT NULL,
-    type character varying(50),
+    type character varying(50), -- CHECKIN/CHECKOUT
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     user_latitude double precision,
     user_longitude double precision,

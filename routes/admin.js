@@ -10,19 +10,22 @@ import otpGenerator from "otp-generator";
 // POST /user/verify-2fa
 // POST /user/resend-2fa
 
-/* --- NOTIFICATION --- */
-// GET /user/get-notification-latest
-// GET /user/get-notifications-all
-
-/* --- PROFILE --- */
-// POST /user/get-user
+/* --- USERS --- */
+// GET /admin/get-user-all
+// POST /admin/add-user
+// PUT /admin/edit-user
+// DELETE /admin/delete-user
 
 /* --- ATTENDANCE --- */
-// POST /user/get-attendance-user
-// POST /user/checkin
-// POST /user/checkout
+// GET /admin/get-attendance
+// POST /admin/get-attendance-user
 
-export function createUserRouter(pool) {
+/* --- NOTIFICATION --- */
+// GET /admin/notifications
+// POST /admin/add-notification
+// DELETE /admin/delete-notification
+
+export function createAdminRouter(pool) {
   const router = express.Router();
 
   /**
@@ -362,180 +365,109 @@ export function createUserRouter(pool) {
   });
 
   /**
-   * GET /user/get-notification-latest
+   * GET /admin/get-user-all
    *
    * Description:
-   *   Retrieves the latest notification for a user.
-   *
-   * Query Parameters:
-   *   userId (integer, required) - the ID of the user
-   *
-   * Successful Response (200):
-   *   {
-   *     "notificationId": 5,
-   *     "title": "Alert",
-   *     "message": "Unusual login attempt detected on your account.",
-   *     "createdAt": "2025-12-23T18:20:00.000Z"
-   *   }
-   *
-   * Error Responses:
-   *   400 Bad Request
-   *     { "error": "userId is required" }
-   *
-   *   404 Not Found
-   *     { "error": "No notifications found" }
-   *
-   *   500 Internal Server Error
-   *     { "error": "Failed to fetch latest notification" }
-   */
-  router.get("/get-notification-latest", async (req, res) => {
-    try {
-      const userId = req.query.userId;
-      if (!userId) {
-        return res.status(400).send({ error: "userId is required" });
-      }
-
-      const result = await pool.query(
-        "SELECT notification_id, title, message, created_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
-        [userId]
-      );
-
-      if (result.rows.length === 0) {
-        return res.status(404).send({ error: "No notifications found" });
-      }
-
-      const row = result.rows[0];
-      res.status(200).send({
-        notificationId: row.notification_id,
-        title: row.title,
-        message: row.message,
-        createdAt: row.created_at,
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).send({ error: "Failed to fetch latest notification" });
-    }
-  });
-
-  /**
-   * GET /user/notifications
-   *
-   * Description:
-   *   Retrieves all notifications for the user, ordered from newest to oldest.
-   *
-   * Query Parameters:
-   *   userId (integer, required) - the ID of the user
+   *   Retrieves all users whose `nim_nip` starts with "NIM".
    *
    * Successful Response (200):
    *   [
    *     {
-   *       "notificationId": 1,
-   *       "title": "Welcome",
-   *       "message": "Thanks for signing up! We hope you enjoy our service.",
-   *       "createdAt": "2025-12-23T09:00:00.000Z"
+   *       "userId": 1,
+   *       "name": "John Doe",
+   *       "usernameEmail": "john@example.com",
+   *       "role": "admin",
+   *       "nimNip": "NIM123456"
    *     },
    *     ...
    *   ]
    *
    * Error Responses:
-   *   400 Bad Request
-   *     { "error": "userId is required" }
-   *
    *   500 Internal Server Error
-   *     { "error": "Failed to fetch notifications" }
+   *     { "error": "Failed to fetch users" }
    */
-  router.get("/get-notifications-all", async (req, res) => {
+  router.get("/get-user-all", async (req, res) => {
     try {
-      const userId = req.query.userId;
-      if (!userId) {
-        return res.status(400).send({ error: "userId is required" });
-      }
-
       const result = await pool.query(
-        "SELECT notification_id, title, message, created_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC",
-        [userId]
+        `SELECT user_id, name, username_email, role, nim_nip
+       FROM "User"
+       WHERE nim_nip LIKE 'NIM%'
+       ORDER BY name ASC`
       );
 
-      const notifications = result.rows.map((row) => ({
-        notificationId: row.notification_id,
-        title: row.title,
-        message: row.message,
-        createdAt: row.created_at,
+      const users = result.rows.map((row) => ({
+        userId: row.user_id,
+        name: row.name,
+        usernameEmail: row.username_email,
+        role: row.role,
+        nimNip: row.nim_nip,
       }));
 
-      res.status(200).send(notifications);
+      res.status(200).send(users);
     } catch (err) {
       console.error(err);
-      res.status(500).send({ error: "Failed to fetch notifications" });
+      res.status(500).send({ error: "Failed to fetch users" });
     }
   });
 
   /**
-   * POST /user/get-user
+   * GET /admin/get-attendance
    *
    * Description:
-   *   Retrieves a user by their ID. The userId is sent in the request body.
-   *
-   * Request Body (JSON):
-   *   {
-   *     "userId": 1   // integer, required
-   *   }
+   *   Retrieves all attendance records for all users.
    *
    * Successful Response (200):
-   *   {
-   *     "userId": 1,
-   *     "name": "John Doe",
-   *     "email": "john@example.com",
-   *     "role": "admin",
-   *     "nim_nip": "123456789"
-   *   }
+   *   [
+   *     {
+   *       "attendanceId": 1,
+   *       "userId": 1,
+   *       "locationId": 2,
+   *       "type": "check-in",
+   *       "timestamp": "2025-12-23T09:00:00.000Z",
+   *       "userLatitude": 123.45,
+   *       "userLongitude": 67.89,
+   *       "status": "present",
+   *       "notes": "Arrived on time"
+   *     },
+   *     ...
+   *   ]
    *
    * Error Responses:
-   *   400 Bad Request
-   *     { "error": "userId is required" }
-   *
-   *   404 Not Found
-   *     { "error": "User not found" }
-   *
    *   500 Internal Server Error
-   *     { "error": "Failed to fetch user" }
+   *     { "error": "Failed to fetch attendance" }
    */
-  router.post("/get-user", async (req, res) => {
+  router.get("/get-attendance", async (req, res) => {
     try {
-      const { userId } = req.body;
-      if (!userId) {
-        return res.status(400).send({ error: "userId is required" });
-      }
-
       const result = await pool.query(
-        'SELECT user_id, name, username_email, role, nim_nip FROM "User" WHERE user_id = $1',
-        [userId]
+        `SELECT attendance_id, user_id, location_id, type, "timestamp", user_latitude, user_longitude, status, notes
+       FROM "Attendance"
+       ORDER BY "timestamp" DESC`
       );
 
-      if (result.rows.length === 0) {
-        return res.status(404).send({ error: "User not found" });
-      }
+      const attendanceRecords = result.rows.map((row) => ({
+        attendanceId: row.attendance_id,
+        userId: row.user_id,
+        locationId: row.location_id,
+        type: row.type,
+        timestamp: row.timestamp,
+        userLatitude: row.user_latitude,
+        userLongitude: row.user_longitude,
+        status: row.status,
+        notes: row.notes,
+      }));
 
-      const user = result.rows[0];
-
-      res.status(200).send({
-        userId: user.user_id,
-        name: user.name,
-        email: user.username_email,
-        role: user.role,
-        nim_nip: user.nim_nip,
-      });
+      res.status(200).send(attendanceRecords);
     } catch (err) {
       console.error(err);
-      res.status(500).send({ error: "Failed to fetch user" });
+      res.status(500).send({ error: "Failed to fetch attendance" });
     }
   });
 
   /**
-   * POST /user/get-attendance-user
+   * POST /admin/get-attendance-user
    *
    * Description:
-   *   Retrieves all attendance records for a user, ordered from newest to oldest.
+   *   Retrieves attendance records for a single user.
    *
    * Request Body (JSON):
    *   {
@@ -545,7 +477,7 @@ export function createUserRouter(pool) {
    * Successful Response (200):
    *   [
    *     {
-   *       "attendanceId": 10,
+   *       "attendanceId": 1,
    *       "userId": 1,
    *       "locationId": 2,
    *       "type": "check-in",
@@ -601,134 +533,363 @@ export function createUserRouter(pool) {
   });
 
   /**
-   * POST /user/checkin
+   * GET /admin/notifications
    *
    * Description:
-   *   Records a check-in attendance for a user at a specific location.
-   *   Automatically sets the type to "check-in" and timestamp to current time.
+   *   Retrieves all notifications for the user, ordered from newest to oldest.
    *
-   * Request Body (JSON):
-   *   {
-   *     "userId": 1,            // integer, required
-   *     "locationId": 2,        // integer, required
-   *     "userLatitude": 123.45, // number, optional
-   *     "userLongitude": 67.89, // number, optional
-   *     "notes": "Some note"    // string, optional
-   *   }
+   * Query Parameters:
+   *   userId (integer, required) - the ID of the user
    *
    * Successful Response (200):
-   *   {
-   *     "message": "Check-in recorded",
-   *     "attendanceId": 10,
-   *     "timestamp": "2025-12-23T09:00:00.000Z"
-   *   }
+   *   [
+   *     {
+   *       "notificationId": 1,
+   *       "title": "Welcome",
+   *       "message": "Thanks for signing up! We hope you enjoy our service.",
+   *       "createdAt": "2025-12-23T09:00:00.000Z"
+   *     },
+   *     ...
+   *   ]
    *
    * Error Responses:
    *   400 Bad Request
-   *     { "error": "userId and locationId are required" }
+   *     { "error": "userId is required" }
    *
    *   500 Internal Server Error
-   *     { "error": "Failed to record check-in" }
+   *     { "error": "Failed to fetch notifications" }
    */
-  router.post("/checkin", async (req, res) => {
+  router.get("/get-notifications-all", async (req, res) => {
     try {
-      const { userId, locationId, userLatitude, userLongitude, notes } =
-        req.body;
-
-      if (!userId || !locationId) {
-        return res
-          .status(400)
-          .send({ error: "userId and locationId are required" });
+      const userId = req.query.userId;
+      if (!userId) {
+        return res.status(400).send({ error: "userId is required" });
       }
 
       const result = await pool.query(
-        `INSERT INTO attendance
-       (user_id, location_id, type, user_latitude, user_longitude, notes)
-       VALUES ($1, $2, 'check-in', $3, $4, $5)
-       RETURNING attendance_id, timestamp`,
-        [
-          userId,
-          locationId,
-          userLatitude || null,
-          userLongitude || null,
-          notes || null,
-        ]
+        "SELECT notification_id, title, message, created_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC",
+        [userId]
       );
 
-      res.status(200).send({
-        message: "Check-in recorded",
-        attendanceId: result.rows[0].attendance_id,
-        timestamp: result.rows[0].timestamp,
-      });
+      const notifications = result.rows.map((row) => ({
+        notificationId: row.notification_id,
+        title: row.title,
+        message: row.message,
+        createdAt: row.created_at,
+      }));
+
+      res.status(200).send(notifications);
     } catch (err) {
       console.error(err);
-      res.status(500).send({ error: "Failed to record check-in" });
+      res.status(500).send({ error: "Failed to fetch notifications" });
     }
   });
 
   /**
-   * POST /user/checkout
+   * POST /admin/add-notification
    *
    * Description:
-   *   Records a checkout attendance for a user at a specific location.
-   *   Automatically sets the type to "checkout" and timestamp to current time.
+   *   Adds a new notification.
    *
-   * Request Body (JSON):
-   *   {
-   *     "userId": 1,            // integer, required
-   *     "locationId": 2,        // integer, required
-   *     "userLatitude": 123.45, // number, optional
-   *     "userLongitude": 67.89, // number, optional
-   *     "notes": "Some note"    // string, optional
-   *   }
+   * Body Parameters:
+   *   notificationId (integer, required) - the ID of the notification
+   *   title (string, required) - the title of the notification
+   *   message (string, required) - the message content of the notification
    *
-   * Successful Response (200):
+   * Successful Response (201):
    *   {
-   *     "message": "Checkout recorded",
-   *     "attendanceId": 11,
-   *     "timestamp": "2025-12-23T17:00:00.000Z"
+   *     "success": true,
+   *     "notificationId": 1,
+   *     "title": "New Notification",
+   *     "message": "This is a new notification",
+   *     "createdAt": "2025-12-25T10:00:00.000Z"
    *   }
    *
    * Error Responses:
    *   400 Bad Request
-   *     { "error": "userId and locationId are required" }
+   *     { "error": "notificationId, title, and message are required" }
    *
    *   500 Internal Server Error
-   *     { "error": "Failed to record checkout" }
+   *     { "error": "Failed to add notification" }
    */
-  router.post("/checkout", async (req, res) => {
+  router.post("/add-notification", async (req, res) => {
     try {
-      const { userId, locationId, userLatitude, userLongitude, notes } =
-        req.body;
-
-      if (!userId || !locationId) {
+      const { notificationId, title, message } = req.body;
+      if (!notificationId || !title || !message) {
         return res
           .status(400)
-          .send({ error: "userId and locationId are required" });
+          .send({ error: "notificationId, title, and message are required" });
+      }
+
+      const createdAt = new Date();
+
+      await pool.query(
+        "INSERT INTO notifications (notification_id, title, message, created_at) VALUES ($1, $2, $3, $4)",
+        [notificationId, title, message, createdAt]
+      );
+
+      res
+        .status(201)
+        .send({ success: true, notificationId, title, message, createdAt });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to add notification" });
+    }
+  });
+
+  /**
+   * DELETE /admin/delete-notification
+   *
+   * Description:
+   *   Deletes a notification by ID.
+   *
+   * Body Parameters:
+   *   notificationId (integer, required) - the ID of the notification to delete
+   *
+   * Successful Response (200):
+   *   {
+   *     "success": true,
+   *     "deletedNotification": {
+   *       "notification_id": 1,
+   *       "title": "Old Notification",
+   *       "message": "This notification will be deleted",
+   *       "created_at": "2025-12-23T09:00:00.000Z"
+   *     }
+   *   }
+   *
+   * Error Responses:
+   *   400 Bad Request
+   *     { "error": "notificationId is required" }
+   *
+   *   404 Not Found
+   *     { "error": "Notification not found" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to delete notification" }
+   */
+  router.delete("/delete-notification", async (req, res) => {
+    try {
+      const { notificationId } = req.body;
+      if (!notificationId) {
+        return res.status(400).send({ error: "notificationId is required" });
       }
 
       const result = await pool.query(
-        `INSERT INTO attendance
-       (user_id, location_id, type, user_latitude, user_longitude, notes)
-       VALUES ($1, $2, 'checkout', $3, $4, $5)
-       RETURNING attendance_id, timestamp`,
-        [
-          userId,
-          locationId,
-          userLatitude || null,
-          userLongitude || null,
-          notes || null,
-        ]
+        "DELETE FROM notifications WHERE notification_id = $1 RETURNING *",
+        [notificationId]
       );
 
-      res.status(200).send({
-        message: "Checkout recorded",
-        attendanceId: result.rows[0].attendance_id,
-        timestamp: result.rows[0].timestamp,
-      });
+      if (result.rowCount === 0) {
+        return res.status(404).send({ error: "Notification not found" });
+      }
+
+      res
+        .status(200)
+        .send({ success: true, deletedNotification: result.rows[0] });
     } catch (err) {
       console.error(err);
-      res.status(500).send({ error: "Failed to record checkout" });
+      res.status(500).send({ error: "Failed to delete notification" });
+    }
+  });
+
+  /**
+   * POST /admin/add-user
+   *
+   * Description:
+   *   Adds a new user to the system.
+   *
+   * Request Body (JSON):
+   *   {
+   *     "userId": 1,                // integer, required
+   *     "name": "John Doe",          // string, required
+   *     "usernameEmail": "john@example.com", // string, required
+   *     "password": "password123",   // string, required
+   *     "role": "admin",             // string, optional
+   *     "nimNip": "123456789"        // string, optional
+   *   }
+   *
+   * Successful Response (201):
+   *   {
+   *     "success": true,
+   *     "userId": 1,
+   *     "name": "John Doe",
+   *     "usernameEmail": "john@example.com",
+   *     "role": "admin",
+   *     "nimNip": "123456789"
+   *   }
+   *
+   * Error Responses:
+   *   400 Bad Request
+   *     { "error": "userId, name, usernameEmail, and password are required" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to add user" }
+   */
+  router.post("/add-user", async (req, res) => {
+    try {
+      const { userId, name, usernameEmail, password, role, nimNip } = req.body;
+
+      if (!userId || !name || !usernameEmail || !password) {
+        return res.status(400).send({
+          error: "userId, name, usernameEmail, and password are required",
+        });
+      }
+
+      await pool.query(
+        `INSERT INTO "User"(user_id, name, username_email, password_hash, role, nim_nip)
+       VALUES($1, $2, $3, $4, $5, $6)`,
+        [userId, name, usernameEmail, password, role || null, nimNip || null]
+      );
+
+      res
+        .status(201)
+        .send({ success: true, userId, name, usernameEmail, role, nimNip });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to add user" });
+    }
+  });
+
+  /**
+   * PUT /admin/edit-user
+   *
+   * Description:
+   *   Edits an existing user's information.
+   *
+   * Request Body (JSON):
+   *   {
+   *     "userId": 1,                // integer, required
+   *     "name": "John Doe",          // string, optional
+   *     "usernameEmail": "john@example.com", // string, optional
+   *     "password": "newpassword",   // string, optional
+   *     "role": "admin",             // string, optional
+   *     "nimNip": "987654321"        // string, optional
+   *   }
+   *
+   * Successful Response (200):
+   *   {
+   *     "success": true,
+   *     "userId": 1
+   *   }
+   *
+   * Error Responses:
+   *   400 Bad Request
+   *     { "error": "userId is required" }
+   *
+   *   404 Not Found
+   *     { "error": "User not found" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to edit user" }
+   */
+  router.put("/edit-user", async (req, res) => {
+    try {
+      const { userId, name, usernameEmail, password, role, nimNip } = req.body;
+
+      if (!userId) {
+        return res.status(400).send({ error: "userId is required" });
+      }
+
+      // check if user exists
+      const checkUser = await pool.query(
+        `SELECT * FROM "User" WHERE user_id = $1`,
+        [userId]
+      );
+      if (checkUser.rows.length === 0) {
+        return res.status(404).send({ error: "User not found" });
+      }
+
+      // build dynamic update query
+      const fields = [];
+      const values = [];
+      let idx = 1;
+
+      if (name) {
+        fields.push(`name = $${idx++}`);
+        values.push(name);
+      }
+      if (usernameEmail) {
+        fields.push(`username_email = $${idx++}`);
+        values.push(usernameEmail);
+      }
+      if (password) {
+        fields.push(`password_hash = $${idx++}`);
+        values.push(password);
+      }
+      if (role) {
+        fields.push(`role = $${idx++}`);
+        values.push(role);
+      }
+      if (nimNip) {
+        fields.push(`nim_nip = $${idx++}`);
+        values.push(nimNip);
+      }
+
+      if (fields.length === 0) {
+        return res.status(400).send({ error: "No fields to update" });
+      }
+
+      values.push(userId); // for WHERE
+      const query = `UPDATE "User" SET ${fields.join(
+        ", "
+      )} WHERE user_id = $${idx}`;
+      await pool.query(query, values);
+
+      res.status(200).send({ success: true, userId });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to edit user" });
+    }
+  });
+
+  /**
+   * DELETE /admin/delete-user
+   *
+   * Description:
+   *   Deletes a user by ID.
+   *
+   * Request Body (JSON):
+   *   {
+   *     "userId": 1   // integer, required
+   *   }
+   *
+   * Successful Response (200):
+   *   {
+   *     "success": true,
+   *     "deletedUserId": 1
+   *   }
+   *
+   * Error Responses:
+   *   400 Bad Request
+   *     { "error": "userId is required" }
+   *
+   *   404 Not Found
+   *     { "error": "User not found" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to delete user" }
+   */
+  router.delete("/delete-user", async (req, res) => {
+    try {
+      const { userId } = req.body;
+
+      if (!userId) {
+        return res.status(400).send({ error: "userId is required" });
+      }
+
+      const result = await pool.query(
+        `DELETE FROM "User" WHERE user_id = $1 RETURNING *`,
+        [userId]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).send({ error: "User not found" });
+      }
+
+      res.status(200).send({ success: true, deletedUserId: userId });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to delete user" });
     }
   });
 

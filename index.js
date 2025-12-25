@@ -29,6 +29,9 @@ pool
 const userRouter = createUserRouter(pool);
 app.use("/user", userRouter);
 
+const adminRouter = createAdminRouter(pool);
+app.use("/admin", userRouter);
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
