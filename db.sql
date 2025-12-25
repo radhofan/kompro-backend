@@ -29,7 +29,7 @@ CREATE TABLE public."Attendance" (
     attendance_id integer NOT NULL,
     user_id integer NOT NULL,
     location_id integer NOT NULL,
-    type character varying(50), -- CHECKIN/CHECKOUT
+    type character varying(50),
     "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     user_latitude double precision,
     user_longitude double precision,
@@ -199,6 +199,7 @@ COPY public."Attendance" (attendance_id, user_id, location_id, type, "timestamp"
 --
 
 COPY public."Locations" (location_id, location_name, latitude, longitude, radius, created_at) FROM stdin;
+1	Telkom University Bandung	-6.97321	107.63014	50	2025-12-25 01:57:25.948011
 \.
 
 

@@ -25,6 +25,9 @@ import otpGenerator from "otp-generator";
 // POST /admin/add-notification
 // DELETE /admin/delete-notification
 
+/* --- OFFICE --- */
+// POST /user/get-office-location
+
 export function createAdminRouter(pool) {
   const router = express.Router();
 
@@ -890,6 +893,57 @@ export function createAdminRouter(pool) {
     } catch (err) {
       console.error(err);
       res.status(500).send({ error: "Failed to delete user" });
+    }
+  });
+
+  /**
+   * GET /admin/get-office-location
+   *
+   * Description:
+   *   Retrieves Telkom University office location only (location_id = 1).
+   *
+   * Successful Response (200):
+   *   {
+   *     "locationId": 1,
+   *     "locationName": "Telkom University Bandung",
+   *     "latitude": -6.97321,
+   *     "longitude": 107.63014,
+   *     "radius": 50,
+   *     "createdAt": "2025-12-25T10:00:00.000Z"
+   *   }
+   *
+   * Error Responses:
+   *   404 Not Found
+   *     { "error": "Office location not found" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to fetch office location" }
+   */
+  router.get("/get-office-location", async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT location_id, location_name, latitude, longitude, radius, created_at
+       FROM "Locations"
+       WHERE location_id = 1`
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).send({ error: "Office location not found" });
+      }
+
+      const row = result.rows[0];
+
+      res.status(200).send({
+        locationId: row.location_id,
+        locationName: row.location_name,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        radius: row.radius,
+        createdAt: row.created_at,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to fetch office location" });
     }
   });
 

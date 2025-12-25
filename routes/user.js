@@ -1,6 +1,7 @@
 import express from "express";
 import nodemailer from "nodemailer";
 import otpGenerator from "otp-generator";
+import { getDistanceInMeters } from "../lib";
 
 // API LIST:
 
@@ -21,6 +22,9 @@ import otpGenerator from "otp-generator";
 // POST /user/get-attendance-user
 // POST /user/checkin
 // POST /user/checkout
+
+/* --- OFFICE --- */
+// POST /user/get-office-location
 
 export function createUserRouter(pool) {
   const router = express.Router();
@@ -604,16 +608,15 @@ export function createUserRouter(pool) {
    * POST /user/checkin
    *
    * Description:
-   *   Records a check-in attendance for a user at a specific location.
-   *   Automatically sets the type to "check-in" and timestamp to current time.
+   *   Records a check-in attendance for a user.
+   *   User MUST be within 50 meters of Telkom University (location_id = 1).
    *
    * Request Body (JSON):
    *   {
-   *     "userId": 1,            // integer, required
-   *     "locationId": 2,        // integer, required
-   *     "userLatitude": 123.45, // number, optional
-   *     "userLongitude": 67.89, // number, optional
-   *     "notes": "Some note"    // string, optional
+   *     "userId": 1,              // integer, required
+   *     "userLatitude": -6.97,    // number, required
+   *     "userLongitude": 107.63,  // number, required
+   *     "notes": "optional note"  // string, optional
    *   }
    *
    * Successful Response (200):
@@ -625,34 +628,55 @@ export function createUserRouter(pool) {
    *
    * Error Responses:
    *   400 Bad Request
-   *     { "error": "userId and locationId are required" }
+   *     { "error": "userId, userLatitude, and userLongitude are required" }
+   *
+   *   403 Forbidden
+   *     { "error": "You are outside the allowed check-in area" }
    *
    *   500 Internal Server Error
    *     { "error": "Failed to record check-in" }
    */
   router.post("/checkin", async (req, res) => {
     try {
-      const { userId, locationId, userLatitude, userLongitude, notes } =
-        req.body;
+      const { userId, userLatitude, userLongitude, notes } = req.body;
 
-      if (!userId || !locationId) {
-        return res
-          .status(400)
-          .send({ error: "userId and locationId are required" });
+      if (!userId || userLatitude == null || userLongitude == null) {
+        return res.status(400).send({
+          error: "userId, userLatitude, and userLongitude are required",
+        });
+      }
+
+      const locationResult = await pool.query(
+        `SELECT latitude, longitude, radius
+       FROM "Locations"
+       WHERE location_id = 1`
+      );
+
+      if (locationResult.rows.length === 0) {
+        return res.status(500).send({ error: "Office location not found" });
+      }
+
+      const office = locationResult.rows[0];
+
+      const distance = getDistanceInMeters(
+        userLatitude,
+        userLongitude,
+        office.latitude,
+        office.longitude
+      );
+
+      if (distance > office.radius) {
+        return res.status(403).send({
+          error: "You are outside the allowed check-in area",
+        });
       }
 
       const result = await pool.query(
-        `INSERT INTO attendance
+        `INSERT INTO "Attendance"
        (user_id, location_id, type, user_latitude, user_longitude, notes)
-       VALUES ($1, $2, 'check-in', $3, $4, $5)
-       RETURNING attendance_id, timestamp`,
-        [
-          userId,
-          locationId,
-          userLatitude || null,
-          userLongitude || null,
-          notes || null,
-        ]
+       VALUES ($1, 1, 'check-in', $2, $3, $4)
+       RETURNING attendance_id, "timestamp"`,
+        [userId, userLatitude, userLongitude, notes || null]
       );
 
       res.status(200).send({
@@ -670,16 +694,15 @@ export function createUserRouter(pool) {
    * POST /user/checkout
    *
    * Description:
-   *   Records a checkout attendance for a user at a specific location.
-   *   Automatically sets the type to "checkout" and timestamp to current time.
+   *   Records a checkout attendance for a user.
+   *   User MUST be within 50 meters of Telkom University (location_id = 1).
    *
    * Request Body (JSON):
    *   {
-   *     "userId": 1,            // integer, required
-   *     "locationId": 2,        // integer, required
-   *     "userLatitude": 123.45, // number, optional
-   *     "userLongitude": 67.89, // number, optional
-   *     "notes": "Some note"    // string, optional
+   *     "userId": 1,              // integer, required
+   *     "userLatitude": -6.97,    // number, required
+   *     "userLongitude": 107.63,  // number, required
+   *     "notes": "optional note"  // string, optional
    *   }
    *
    * Successful Response (200):
@@ -691,34 +714,55 @@ export function createUserRouter(pool) {
    *
    * Error Responses:
    *   400 Bad Request
-   *     { "error": "userId and locationId are required" }
+   *     { "error": "userId, userLatitude, and userLongitude are required" }
+   *
+   *   403 Forbidden
+   *     { "error": "You are outside the allowed checkout area" }
    *
    *   500 Internal Server Error
    *     { "error": "Failed to record checkout" }
    */
   router.post("/checkout", async (req, res) => {
     try {
-      const { userId, locationId, userLatitude, userLongitude, notes } =
-        req.body;
+      const { userId, userLatitude, userLongitude, notes } = req.body;
 
-      if (!userId || !locationId) {
-        return res
-          .status(400)
-          .send({ error: "userId and locationId are required" });
+      if (!userId || userLatitude == null || userLongitude == null) {
+        return res.status(400).send({
+          error: "userId, userLatitude, and userLongitude are required",
+        });
+      }
+
+      const locationResult = await pool.query(
+        `SELECT latitude, longitude, radius
+       FROM "Locations"
+       WHERE location_id = 1`
+      );
+
+      if (locationResult.rows.length === 0) {
+        return res.status(500).send({ error: "Office location not found" });
+      }
+
+      const office = locationResult.rows[0];
+
+      const distance = getDistanceInMeters(
+        userLatitude,
+        userLongitude,
+        office.latitude,
+        office.longitude
+      );
+
+      if (distance > office.radius) {
+        return res.status(403).send({
+          error: "You are outside the allowed checkout area",
+        });
       }
 
       const result = await pool.query(
-        `INSERT INTO attendance
+        `INSERT INTO "Attendance"
        (user_id, location_id, type, user_latitude, user_longitude, notes)
-       VALUES ($1, $2, 'checkout', $3, $4, $5)
-       RETURNING attendance_id, timestamp`,
-        [
-          userId,
-          locationId,
-          userLatitude || null,
-          userLongitude || null,
-          notes || null,
-        ]
+       VALUES ($1, 1, 'checkout', $2, $3, $4)
+       RETURNING attendance_id, "timestamp"`,
+        [userId, userLatitude, userLongitude, notes || null]
       );
 
       res.status(200).send({
@@ -729,6 +773,57 @@ export function createUserRouter(pool) {
     } catch (err) {
       console.error(err);
       res.status(500).send({ error: "Failed to record checkout" });
+    }
+  });
+
+  /**
+   * GET /admin/get-office-location
+   *
+   * Description:
+   *   Retrieves Telkom University office location only (location_id = 1).
+   *
+   * Successful Response (200):
+   *   {
+   *     "locationId": 1,
+   *     "locationName": "Telkom University Bandung",
+   *     "latitude": -6.97321,
+   *     "longitude": 107.63014,
+   *     "radius": 50,
+   *     "createdAt": "2025-12-25T10:00:00.000Z"
+   *   }
+   *
+   * Error Responses:
+   *   404 Not Found
+   *     { "error": "Office location not found" }
+   *
+   *   500 Internal Server Error
+   *     { "error": "Failed to fetch office location" }
+   */
+  router.get("/get-office-location", async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT location_id, location_name, latitude, longitude, radius, created_at
+       FROM "Locations"
+       WHERE location_id = 1`
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).send({ error: "Office location not found" });
+      }
+
+      const row = result.rows[0];
+
+      res.status(200).send({
+        locationId: row.location_id,
+        locationName: row.location_name,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        radius: row.radius,
+        createdAt: row.created_at,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to fetch office location" });
     }
   });
 

@@ -1,0 +1,3 @@
+HOW TO BACKUP SQL FROM NEON
+
+pg_dump -Fc -v -d "postgresql://neondb_owner:npg_yAb68axZuVdo@ep-sparkling-forest-a1x56kd4-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require" -f my_neon_backup.ba && pg_restore -F c -f db.sql my_neon_backup.ba && rm my_neon_backup.ba
