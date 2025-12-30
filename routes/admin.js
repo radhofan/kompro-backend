@@ -26,7 +26,8 @@ import otpGenerator from "otp-generator";
 // DELETE /admin/delete-notification
 
 /* --- OFFICE --- */
-// POST /user/get-office-location
+// GET /user/get-office-location
+// POST /user/set-office-location
 
 export function createAdminRouter(pool) {
   const router = express.Router();
@@ -944,6 +945,79 @@ export function createAdminRouter(pool) {
     } catch (err) {
       console.error(err);
       res.status(500).send({ error: "Failed to fetch office location" });
+    }
+  });
+
+  /**
+   * POST /admin/set-office-location
+   *
+   * Request Body (JSON):
+   * {
+   *   "locationName": "Telkom University Bandung",
+   *   "latitude": -6.97321,
+   *   "longitude": 107.63014,
+   *   "radius": 50
+   * }
+   *
+   * Successful Response (200):
+   * {
+   *   "success": true,
+   *   "locationId": 1,
+   *   "locationName": "Telkom University Bandung",
+   *   "latitude": -6.97321,
+   *   "longitude": 107.63014,
+   *   "radius": 50
+   * }
+   */
+  router.post("/set-office-location", async (req, res) => {
+    try {
+      const { locationName, latitude, longitude, radius } = req.body;
+
+      if (
+        !locationName ||
+        latitude === undefined ||
+        longitude === undefined ||
+        radius === undefined
+      ) {
+        return res.status(400).send({
+          error: "locationName, latitude, longitude, and radius are required",
+        });
+      }
+
+      const existing = await pool.query(
+        `SELECT location_id FROM "Locations" WHERE location_id = 1`
+      );
+
+      if (existing.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO "Locations"
+         (location_id, location_name, latitude, longitude, radius, created_at)
+         VALUES (1, $1, $2, $3, $4, NOW())`,
+          [locationName, latitude, longitude, radius]
+        );
+      } else {
+        await pool.query(
+          `UPDATE "Locations"
+         SET location_name = $1,
+             latitude = $2,
+             longitude = $3,
+             radius = $4
+         WHERE location_id = 1`,
+          [locationName, latitude, longitude, radius]
+        );
+      }
+
+      res.status(200).send({
+        success: true,
+        locationId: 1,
+        locationName,
+        latitude,
+        longitude,
+        radius,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ error: "Failed to set office location" });
     }
   });
 
